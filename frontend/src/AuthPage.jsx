@@ -572,7 +572,7 @@ export default function AuthPage() {
 
  const handleLogin = async () => {
 
-  const API = import.meta.env.VITE_API_URL || "http://127.0.0.1:5000";
+  const API = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1" ? "http://127.0.0.1:5000" : "https://lms-project-production-f41c.up.railway.app";
   const response = await fetch(`${API}/login`,{
     method:"POST",
     headers:{

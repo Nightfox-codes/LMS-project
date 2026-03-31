@@ -11,7 +11,19 @@ SCORM_DIR = os.path.join(BASE_DIR, "..", "scorm_files")
 os.chdir(BASE_DIR)
 
 app = Flask(__name__)
-CORS(app)
+# CORS(app)
+
+CORS(app, resources={
+    r"/api/*": {
+        "origins": [
+            "http://localhost:3000",
+            "http://localhost:5173",
+            os.getenv('FRONTEND_URL', '*')
+        ],
+        "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        "allow_headers": ["Content-Type"]
+    }
+})
 
 import random
 import string
