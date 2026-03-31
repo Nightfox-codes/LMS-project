@@ -24,6 +24,10 @@ def generate_temp_password(length=10):
 
 # Database connection
 def get_db():
+    db_url = os.environ.get("DATABASE_URL")
+    if db_url:
+        return psycopg2.connect(db_url)
+        
     conn = psycopg2.connect(
         host="localhost",
         database="lms_db",
