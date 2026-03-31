@@ -1,0 +1,314 @@
+# Instructors with their courses
+GET  /api/instructors-overview   → [{id, firstname, lastname, email, courses:[{id,title,status}]}]
+
+# Modules
+GET    /api/courses/<id>/modules
+POST   /api/courses/<id>/modules
+PUT    /api/modules/<id>
+DELETE /api/modules/<id>
+
+# Lessons
+GET    /api/modules/<id>/lessons
+POST   /api/modules/<id>/lessons
+PUT    /api/lessons/<id>
+DELETE /api/lessons/<id>
+
+# Materials
+GET    /api/lessons/<id>/materials
+POST   /api/lessons/<id>/materials
+DELETE /api/materials/<id>
+
+
+
+
+
+import { useEffect, useRef, useState } from "react";
+import { useParams, useNavigate } from "react-router-dom";
+
+const API = "http://127.0.0.1:5000";
+
+const Icon = ({ d, size = 18, stroke = "currentColor" }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={stroke} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+    <path d={d} />
+  </svg>
+);
+const icons = {
+  arrowLeft: "M19 12H5M12 19l-7-7 7-7",
+  check:     "M20 6L9 17l-5-5",
+  clock:     "M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM12 6v6l4 2",
+  award:     "M12 15a7 7 0 1 0 0-14 7 7 0 0 0 0 14zM8.21 13.89L7 23l5-3 5 3-1.21-9.12",
+  refresh:   "M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15",
+};
+
+export default function ScormPlayer() {
+  const { course_id } = useParams();
+  const navigate = useNavigate();
+  const iframeRef = useRef(null);
+  const scormDataRef = useRef({});   // in-memory SCORM state
+  const saveTimerRef = useRef(null);
+
+  const [courseTitle, setCourseTitle] = useState("Loading...");
+  const [status, setStatus]           = useState("incomplete");
+  const [score, setScore]             = useState(null);
+  const [loading, setLoading]         = useState(true);
+  const [error, setError]             = useState(null);
+  const [lastSaved, setLastSaved]     = useState(null);
+
+  const user_id = sessionStorage.getItem("user_id") || "0";
+
+  // ── Save progress to backend
+  const saveProgress = async (data) => {
+    try {
+      await fetch(`${API}/api/scorm/${course_id}/progress`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          user_id: parseInt(user_id),
+          completion_status: data["cmi.core.lesson_status"] || data["cmi.completion_status"] || "incomplete",
+          score: parseFloat(data["cmi.core.score.raw"] || data["cmi.score.raw"] || 0) || 0,
+          suspend_data: data["cmi.suspend_data"] || "",
+        }),
+      });
+      setLastSaved(new Date().toLocaleTimeString());
+      const newStatus = data["cmi.core.lesson_status"] || data["cmi.completion_status"] || "incomplete";
+      setStatus(newStatus);
+      const rawScore = parseFloat(data["cmi.core.score.raw"] || data["cmi.score.raw"]);
+      if (!isNaN(rawScore)) setScore(rawScore);
+    } catch (e) {
+      console.error("Failed to save SCORM progress", e);
+    }
+  };
+
+  // ── Inject SCORM 1.2 API into window (iframe looks for window.API in parent)
+  const injectScormApi = (initialData) => {
+    scormDataRef.current = { ...initialData };
+
+    // SCORM 1.2
+    window.API = {
+      LMSInitialize: (_) => {
+        console.log("[SCORM] LMSInitialize");
+        return "true";
+      },
+      LMSFinish: (_) => {
+        console.log("[SCORM] LMSFinish");
+        saveProgress(scormDataRef.current);
+        return "true";
+      },
+      LMSGetValue: (key) => {
+        const val = scormDataRef.current[key] ?? "";
+        console.log(`[SCORM] LMSGetValue(${key}) =`, val);
+        return String(val);
+      },
+      LMSSetValue: (key, value) => {
+        console.log(`[SCORM] LMSSetValue(${key}, ${value})`);
+        scormDataRef.current[key] = value;
+        // Auto-save every 10s after a set value
+        if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+        saveTimerRef.current = setTimeout(() => saveProgress(scormDataRef.current), 10000);
+        return "true";
+      },
+      LMSCommit: (_) => {
+        console.log("[SCORM] LMSCommit");
+        saveProgress(scormDataRef.current);
+        return "true";
+      },
+      LMSGetLastError:   () => "0",
+      LMSGetErrorString: () => "",
+      LMSGetDiagnostic:  () => "",
+    };
+
+    // SCORM 2004 API (same bridge, different name)
+    window.API_1484_11 = {
+      Initialize:     (_) => { window.API.LMSInitialize(_); return "true"; },
+      Terminate:      (_) => { window.API.LMSFinish(_);     return "true"; },
+      GetValue:       (k) => window.API.LMSGetValue(k),
+      SetValue:       (k, v) => window.API.LMSSetValue(k, v),
+      Commit:         (_) => { window.API.LMSCommit(_); return "true"; },
+      GetLastError:   () => "0",
+      GetErrorString: () => "",
+      GetDiagnostic:  () => "",
+    };
+
+    console.log("[SCORM] API bridge injected");
+  };
+
+  // ── On mount: fetch launch info + existing progress
+  useEffect(() => {
+    const init = async () => {
+      try {
+        // 1. Get course title
+        const cRes = await fetch(`${API}/courses`);
+        const courses = await cRes.json();
+        const course = courses.find(c => String(c.course_id) === String(course_id));
+        if (course) setCourseTitle(course.title);
+
+        // 2. Get existing progress (for resume)
+        const pRes = await fetch(`${API}/api/scorm/${course_id}/progress?user_id=${user_id}`);
+        const progress = await pRes.json();
+
+        // 3. Get launch info
+        const lRes = await fetch(`${API}/api/courses/${course_id}/scorm-launch`);
+        if (!lRes.ok) { setError("No SCORM package found for this course."); setLoading(false); return; }
+        const launch = await lRes.json();
+
+        // 4. Build initial SCORM data from saved progress
+        const initialData = {
+          "cmi.core.lesson_status":  progress.completion_status || "incomplete",
+          "cmi.completion_status":   progress.completion_status || "incomplete",
+          "cmi.core.score.raw":      progress.score || 0,
+          "cmi.score.raw":           progress.score || 0,
+          "cmi.suspend_data":        progress.suspend_data || "",
+          "cmi.core.student_id":     user_id,
+          "cmi.core.student_name":   sessionStorage.getItem("user_name") || "Student",
+          "cmi.core.entry":          progress.suspend_data ? "resume" : "ab-initio",
+        };
+
+        setStatus(progress.completion_status || "incomplete");
+        if (progress.score) setScore(progress.score);
+
+        // 5. Inject API bridge with initial data
+        injectScormApi(initialData);
+
+        // 6. Load iframe
+        // const iframeSrc = `${API}/scorm_files/${course_id}/${launch.entry_point}`;
+        const iframeSrc = `${API}/scorm-play/${course_id}?user_id=${user_id}`;
+        if (iframeRef.current) {
+          iframeRef.current.src = iframeSrc;
+        }
+
+        setLoading(false);
+      } catch (e) {
+        console.error(e);
+        setError("Failed to load SCORM package.");
+        setLoading(false);
+      }
+    };
+
+    init();
+
+    // cleanup: save on unmount
+    return () => {
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+      if (Object.keys(scormDataRef.current).length > 0) {
+        saveProgress(scormDataRef.current);
+      }
+      delete window.API;
+      delete window.API_1484_11;
+    };
+  }, [course_id]);
+
+  // ── Status badge
+  const statusStyle = {
+    completed: { bg: "rgba(74,222,128,0.15)",  color: "#4ade80",  label: "Completed" },
+    passed:    { bg: "rgba(74,222,128,0.15)",  color: "#4ade80",  label: "Passed" },
+    failed:    { bg: "rgba(248,113,113,0.15)", color: "#f87171",  label: "Failed" },
+    incomplete:{ bg: "rgba(251,191,36,0.15)",  color: "#fbbf24",  label: "In Progress" },
+  };
+  const ss = statusStyle[status] || statusStyle.incomplete;
+
+  return (
+    <>
+      <style>{`
+        @keyframes spin { to { transform: rotate(360deg); } }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        html, body, #root { height: 100%; background: #0d1117; }
+      `}</style>
+      <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+
+      <div style={{ display: "flex", flexDirection: "column", height: "100vh", background: "#0d1117", fontFamily: "'DM Sans', sans-serif", color: "#c8d4f0" }}>
+
+        {/* ── Top bar ── */}
+        <div style={{ display: "flex", alignItems: "center", gap: 16, padding: "12px 24px", background: "#0f1420", borderBottom: "1px solid rgba(255,255,255,0.06)", flexShrink: 0 }}>
+
+          {/* Back */}
+          <button onClick={() => navigate(-1)}
+            style={{ display: "flex", alignItems: "center", gap: 8, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)", color: "#7a8aaa", borderRadius: 9, padding: "8px 14px", cursor: "pointer", fontSize: 13 }}>
+            <Icon d={icons.arrowLeft} size={15} /> Back
+          </button>
+
+          {/* Title */}
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 16, fontWeight: 600, color: "#fff", fontFamily: "'Playfair Display', serif" }}>{courseTitle}</div>
+            <div style={{ fontSize: 11, color: "#4a5568", marginTop: 1 }}>SCORM Course Preview</div>
+          </div>
+
+          {/* Score */}
+          {score !== null && (
+            <div style={{ display: "flex", alignItems: "center", gap: 6, background: "rgba(91,110,245,0.12)", border: "1px solid rgba(91,110,245,0.2)", borderRadius: 8, padding: "6px 12px" }}>
+              <Icon d={icons.award} size={14} stroke="#818cf8" />
+              <span style={{ fontSize: 13, color: "#818cf8", fontWeight: 600 }}>Score: {score}%</span>
+            </div>
+          )}
+
+          {/* Status badge */}
+          <span style={{ background: ss.bg, color: ss.color, padding: "5px 12px", borderRadius: 20, fontSize: 11, fontWeight: 600, letterSpacing: "0.04em", textTransform: "uppercase" }}>
+            {ss.label}
+          </span>
+
+          {/* Last saved */}
+          {lastSaved && (
+            <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, color: "#4a5568" }}>
+              <Icon d={icons.clock} size={12} stroke="#4a5568" />
+              Saved {lastSaved}
+            </div>
+          )}
+        </div>
+
+        {/* ── Content area ── */}
+        <div style={{ flex: 1, position: "relative", overflow: "hidden" }}>
+
+          {/* Loading state */}
+          {loading && (
+            <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 16, background: "#0d1117", zIndex: 10 }}>
+              <div style={{ width: 40, height: 40, border: "3px solid rgba(91,110,245,0.2)", borderTop: "3px solid #5b6ef5", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+              <div style={{ fontSize: 14, color: "#4a5568" }}>Loading SCORM package...</div>
+            </div>
+          )}
+
+          {/* Error state */}
+          {error && (
+            <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 16, background: "#0d1117" }}>
+              <div style={{ fontSize: 40 }}>📦</div>
+              <div style={{ fontSize: 16, color: "#f87171", fontWeight: 600 }}>{error}</div>
+              <button onClick={() => navigate(-1)}
+                style={{ display: "flex", alignItems: "center", gap: 8, background: "rgba(91,110,245,0.15)", border: "none", color: "#818cf8", borderRadius: 9, padding: "10px 18px", cursor: "pointer", fontSize: 14 }}>
+                <Icon d={icons.arrowLeft} size={15} stroke="#818cf8" /> Go Back
+              </button>
+            </div>
+          )}
+
+          {/* SCORM iframe */}
+          {!error && (
+            <iframe
+              ref={iframeRef}
+              title="SCORM Content"
+              style={{
+                width: "100%",
+                height: "100%",
+                border: "none",
+                display: loading ? "none" : "block",
+                background: "#fff",
+              }}
+              allow="fullscreen"
+              onLoad={() => setLoading(false)}
+            />
+          )}
+        </div>
+
+        {/* ── Bottom bar — completion banner ── */}
+        {(status === "completed" || status === "passed") && (
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 12, padding: "12px 24px", background: "rgba(74,222,128,0.08)", borderTop: "1px solid rgba(74,222,128,0.2)", flexShrink: 0 }}>
+            <Icon d={icons.check} size={16} stroke="#4ade80" />
+            <span style={{ fontSize: 13, color: "#4ade80", fontWeight: 600 }}>
+              Course {status === "passed" ? "passed" : "completed"}!
+              {score !== null && ` Final score: ${score}%`}
+            </span>
+          </div>
+        )}
+      </div>
+    </>
+  );
+}
+
+
+
