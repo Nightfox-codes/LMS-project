@@ -20,7 +20,8 @@ export default function useTrackActivity(user_id) {
       lastUpdated.current = now;
 
       try {
-        await fetch(`http://127.0.0.1:5000/api/users/${user_id}/last-active`, {
+        const API = import.meta.env.VITE_API_URL || "http://127.0.0.1:5000";
+        await fetch(`${API}/api/users/${user_id}/last-active`, {
           method: "PATCH"
         });
       } catch (err) {
