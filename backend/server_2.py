@@ -12,8 +12,7 @@ os.chdir(BASE_DIR)
 
 app = Flask(__name__)
 # CORS(app)
-port = int(os.environ.get("PORT", 8080))
-app.run(host="0.0.0.0", port=port)
+
 CORS(app, resources={
     r"/api/*": {
         "origins": [
@@ -25,6 +24,8 @@ CORS(app, resources={
         "allow_headers": ["Content-Type"]
     }
 })
+port = int(os.environ.get("PORT", 8080))
+
 
 import random
 import string
@@ -1807,7 +1808,7 @@ def get_user_courses_progress(user_id):
         conn.close()
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(host="0.0.0.0", port=port)
     
     
 
