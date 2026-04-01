@@ -14,14 +14,10 @@ app = Flask(__name__)
 # CORS(app)
 
 CORS(app, resources={
-    r"/api/*": {
-        "origins": [
-            "http://localhost:3000",
-            "http://localhost:5173",
-            os.getenv('FRONTEND_URL', '*')
-        ],
+    r"/*": {
+        "origins": "*",
         "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-        "allow_headers": ["Content-Type"]
+        "allow_headers": ["Content-Type", "Authorization"]
     }
 })
 port = int(os.environ.get("PORT", 8080))
