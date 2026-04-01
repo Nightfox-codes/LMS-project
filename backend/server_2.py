@@ -11,7 +11,9 @@ SCORM_DIR = os.path.join(BASE_DIR, "..", "scorm_files")
 os.chdir(BASE_DIR)
 
 app = Flask(__name__)
-# CORS(app)
+@app.errorhandler(Exception)
+def handle_exception(e):
+    return jsonify({"error": str(e), "type": type(e).__name__}), 500
 
 CORS(app, resources={
     r"/*": {
