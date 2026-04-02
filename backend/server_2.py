@@ -7,7 +7,7 @@ import xml.etree.ElementTree as ET
 from flask import send_from_directory
 import sys
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-SCORM_DIR = os.path.join(BASE_DIR, "..", "scorm_files")
+SCORM_DIR = os.path.join(BASE_DIR, "scorm_files")
 os.chdir(BASE_DIR)
 
 app = Flask(__name__)
