@@ -585,8 +585,8 @@ export default function AuthPage() {
   
   if(response.ok){
     const data = await response.json()
-    sessionStorage.setItem("user_id", data.user_id)
-  
+    sessionStorage.setItem("user_id", data.user_id);
+    sessionStorage.setItem("role", data.role);
     //re routing based on ROLE
     if(data.role === "student"){
       window.location.href="/student-dashboard"
