@@ -1712,7 +1712,7 @@ def get_course_users_progress(course_id):
             FROM users u
             JOIN scorm_progress sp ON u.id = sp.user_id
             LEFT JOIN scorm_settings ss ON ss.course_id = sp.course_id 
-                AND (ss.lesson_id::TEXT = sp.lesson_id OR (ss.lesson_id IS NULL AND sp.lesson_id IS NULL))
+                AND (ss.lesson_id = sp.lesson_id OR (ss.lesson_id IS NULL AND sp.lesson_id IS NULL))
             WHERE sp.course_id = %s
             GROUP BY u.id, u.firstname, u.lastname, u.email
             ORDER BY last_active DESC
