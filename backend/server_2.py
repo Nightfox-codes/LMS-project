@@ -9,7 +9,7 @@ import sys
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 SCORM_DIR = os.path.join(BASE_DIR, "scorm_files")
 os.chdir(BASE_DIR)
-#hihi
+
 
 app = Flask(__name__)
 @app.errorhandler(Exception)
@@ -695,15 +695,17 @@ def scorm_progress(course_id):
                 lesson_id = request.args.get("lesson_id")
                 if lesson_id:
                     cur.execute("""
-                        SELECT completion_status, score, suspend_data
-                        FROM scorm_progress
-                        WHERE course_id = %s AND user_id = %s AND lesson_id = %s
+                        SELECT p.completion_status, p.score, p.suspend_data, a.lesson_location
+                        FROM scorm_progress p
+                        LEFT JOIN scorm_attempts a ON p.last_attempt_id = a.attempt_id
+                        WHERE p.course_id = %s AND p.user_id = %s AND p.lesson_id = %s
                     """, (course_id, user_id, lesson_id))
                 else:
                     cur.execute("""
-                        SELECT completion_status, score, suspend_data
-                        FROM scorm_progress
-                        WHERE course_id = %s AND user_id = %s AND lesson_id IS NULL
+                        SELECT p.completion_status, p.score, p.suspend_data, a.lesson_location
+                        FROM scorm_progress p
+                        LEFT JOIN scorm_attempts a ON p.last_attempt_id = a.attempt_id
+                        WHERE p.course_id = %s AND p.user_id = %s AND p.lesson_id IS NULL
                     """, (course_id, user_id))
 
             row = cur.fetchone()
@@ -716,21 +718,13 @@ def scorm_progress(course_id):
                     "lesson_location": ""
                 })
 
-            # attempt query returns 4 cols, progress query returns 3
-            if attempt_id:
-                return jsonify({
-                    "completion_status": row[0],
-                    "score": row[1],
-                    "suspend_data": row[2] or "",
-                    "lesson_location": row[3] or ""
-                })
-            else:
-                return jsonify({
-                    "completion_status": row[0],
-                    "score": row[1],
-                    "suspend_data": row[2] or "",
-                    "lesson_location": ""
-                })
+            # Both queries now powerfully return 4 columns (including lesson_location at index 3)
+            return jsonify({
+                "completion_status": row[0],
+                "score": row[1],
+                "suspend_data": row[2] or "",
+                "lesson_location": row[3] or ""
+            })
 
         except Exception as e:
             return jsonify({"error": str(e)}), 500

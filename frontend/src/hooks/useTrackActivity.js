@@ -7,8 +7,8 @@ export default function useTrackActivity(user_id) {
     if (!user_id) return;
     const updateActivity = async () => {
 
-      console.log("Activity update triggered");
-      console.log("CLICK ACTIVITY", user_id)
+      // console.log("Activity update triggered");
+      // console.log("CLICK ACTIVITY", user_id)
 
       const now = Date.now();
 
