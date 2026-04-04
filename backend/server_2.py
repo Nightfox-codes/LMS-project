@@ -1765,7 +1765,7 @@ def get_user_courses_progress(user_id):
             FROM courses c
             JOIN scorm_progress sp ON c.course_id = sp.course_id
             LEFT JOIN scorm_settings ss ON ss.course_id = sp.course_id 
-                AND (ss.lesson_id::TEXT = sp.lesson_id OR (ss.lesson_id IS NULL AND sp.lesson_id IS NULL))
+                AND (ss.lesson_id = sp.lesson_id OR (ss.lesson_id IS NULL AND sp.lesson_id IS NULL))
             WHERE sp.user_id = %s
             GROUP BY c.course_id, c.title, c.category
             ORDER BY last_accessed DESC
