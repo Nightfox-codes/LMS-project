@@ -691,7 +691,7 @@ def scorm_progress(course_id):
                     WHERE attempt_id = %s
                 """, (attempt_id,))
             else:
-                # fallback → use progress table (no lesson_location column)
+                # fallback → use progress table (no lesson_location column) ADDED LEFT JOIN to get latest lesson_location from attempts
                 lesson_id = request.args.get("lesson_id")
                 if lesson_id:
                     cur.execute("""
