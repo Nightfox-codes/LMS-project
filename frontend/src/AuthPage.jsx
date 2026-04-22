@@ -572,7 +572,7 @@ export default function AuthPage() {
 
  const handleLogin = async () => {
 
-  const API = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1" ? "http://127.0.0.1:8080" : "https://lms-project-production-ba53.up.railway.app";
+  const API = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1" || window.location.hostname.startsWith("192.168.") ? "http://" + window.location.hostname + ":8080" : "https://lms-project-production-ba53.up.railway.app";
   const response = await fetch(`${API}/login`,{
     method:"POST",
     headers:{
@@ -608,7 +608,7 @@ export default function AuthPage() {
   
   const handleRegister = async () => {
 
-  const API = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1" ? "http://127.0.0.1:8080" : "https://lms-project-production-ba53.up.railway.app";
+  const API = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1" || window.location.hostname.startsWith("192.168.") ? "http://" + window.location.hostname + ":8080" : "https://lms-project-production-ba53.up.railway.app";
   const response = await fetch(`${API}/register`,{
     method:"POST",
     headers:{
