@@ -20,7 +20,7 @@ export default function useTrackActivity(user_id) {
       lastUpdated.current = now;
 
       try {
-        const API = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1" ? "http://127.0.0.1:5000" : "https://lms-project-production-ba53.up.railway.app";
+        const API = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1" ? "http://127.0.0.1:8080" : "https://lms-project-production-ba53.up.railway.app";
         await fetch(`${API}/api/users/${user_id}/last-active`, {
           method: "PATCH"
         });
