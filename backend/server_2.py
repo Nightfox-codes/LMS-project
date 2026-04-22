@@ -1497,17 +1497,6 @@ def save_scorm_settings(course_id):
 
 
 
-
-
-
-
-
-
-
-
-
-
-
 #───────────────────────────────────────────────────SCORM ATTEMPTS─────────────────────────────────────────────────────
 
 # LOG a completed attempt (insert-only — called on exit or test finish)
